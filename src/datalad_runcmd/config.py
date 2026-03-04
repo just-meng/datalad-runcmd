@@ -19,6 +19,10 @@ class PlaceholderSpec:
     (comma), ``.json`` (array or object-keys), anything else (one value per
     line).  Override with *separator*.  Use *column* (0-indexed) or
     *column_name* to select which field to read from delimited files.
+
+    *prefix* is an optional filter: only candidates that start with it are
+    kept.  Matching itself is driven by the unique parts auto-detected from
+    the full candidate set (see :func:`resolve_placeholder`).
     """
 
     prefix: str = ""
@@ -42,8 +46,6 @@ class Config:
 
 
 def _parse_placeholder(name: str, table: dict) -> PlaceholderSpec:
-    # 'type' key accepted for backward compat but not used — behaviour is now
-    # inferred from which sources are configured.
     return PlaceholderSpec(
         prefix=table.get("prefix", ""),
         values=table.get("values", []),
