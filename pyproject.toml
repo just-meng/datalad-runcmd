@@ -12,6 +12,9 @@ authors = [
     { name = "Jiameng Wu", email = "jiameng.wu@gmail.com" },
 ]
 
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
 [project.scripts]
 runcmd = "datalad_runcmd.cli:main"
 

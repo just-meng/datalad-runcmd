@@ -103,19 +103,23 @@ def _collect_candidates(spec: PlaceholderSpec, root: Path) -> list[str]:
 
 
 def _score_match(arg: str, candidate: str) -> float | None:
-    """Score how specifically *arg* identifies *candidate*.
+    """Score how specifically *arg* identifies *candidate* (case-insensitive suffix match).
 
     Returns a value in ``(0, 1]`` — higher means more specific — or ``None``
-    when there is no match at all.  Matching is case-insensitive.
+    when there is no match at all.
 
-    * Exact match → 1.0
-    * *arg* is a substring of *candidate* → ``len(arg) / len(candidate)``
+    * Exact (case-insensitive) match → 1.0
+    * *arg* is a suffix of *candidate* → ``len(arg) / len(candidate)``
+
+    Suffix matching is used (not arbitrary substring) to avoid false positives
+    where the arg accidentally matches a common prefix shared by all candidates
+    (e.g. 'b' matching the 'b' in 'sub-' for every 'sub-*' identifier).
     """
     al = arg.lower()
     cl = candidate.lower()
     if al == cl:
         return 1.0
-    if al in cl:
+    if cl.endswith(al):
         return len(arg) / len(candidate)
     return None
 

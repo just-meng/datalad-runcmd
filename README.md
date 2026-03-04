@@ -5,6 +5,8 @@ short aliases, and let `runcmd` do the rest.
 
 ```console
 $ runcmd run_suite2p.py O Saline
+  {sub-id}: 'O' -> 'sub-240226O'
+  {exp-drug}: 'Saline' -> 'exp-Saline'
 datalad run \
 	-m "Run suite2p for sub-240226O, exp-Saline" \
 	-i "inputs/L5b_2p/sub-240226O/exp-Saline/ses-pre" \
@@ -15,9 +17,9 @@ datalad run \
 	"./code/src/process2p/run_suite2p.py {inputs} {outputs}"
 ```
 
-`O` auto-matched to `sub-240226O` via a lookup table, since it is uniquely assigned to one subject. If multiple subject 
-IDs contained `O`, all would have been listed. Likewise `Saline` matched to `exp-Saline`. The command template lives in the 
-script's own docstring.
+`O` uniquely matched `sub-240226O` via a lookup table. If multiple subject IDs
+contained `O`, all would have been listed. `Saline` → `exp-Saline` via a
+prefix rule.  The command template lives in the script's own docstring.
 
 **Python 3.11+, stdlib only, no runtime dependencies.**
 
@@ -32,7 +34,7 @@ script's own docstring.
 ## Installation
 
 ```bash
-uv tool -e /path/to/datalad-runcmd   # local editable install as system CLI-tool
+uv tool install -e /path/to/datalad-runcmd   # local editable install as system CLI-tool
 ```
 
 ## Configuration
@@ -41,29 +43,62 @@ Create `.datalad/runcmd.toml` at the root of your DataLad dataset:
 
 ```toml
 [runcmd]
-script_dirs = ["path/to/script/dir"]    # path to dirs containing your script
+script_dirs = ["path/to/script/dir"]
 
-# add a rule for each placeholder variable
-[runcmd.placeholders.sub-id]            # placeholder variable, e.g. 'sub-id', 'ses-id' 
-type = "lookup"                         # lookup table containing all sub-ids
-file = "path/to/tsv"                    
-column = 0                              # 0-indexed, column to lookup
+# ── Lookup from a file ────────────────────────────────────────────────────────
+[runcmd.placeholders.sub-id]
+file = "inputs/subjects.tsv"   # TSV, CSV, JSON, or plain text  (see below)
+column = 0                     # 0-indexed column  (or use column_name = "participant_id")
 skip_header = true
-scan_dirs = ["path/to/sub/dir"]         # fallback: scan for matching dirs
+prefix = "sub-"                # keep only candidates that start with this prefix
+scan_dirs = ["01_data"]        # fallback: scan for matching subdirectories
+
+# ── Prefix-only (no lookup table) ─────────────────────────────────────────────
+[runcmd.placeholders.exp-drug]
+prefix = "exp-"                # prepend prefix when missing; arg is used as-is
+
+# ── Explicit list ─────────────────────────────────────────────────────────────
+[runcmd.placeholders.mode]
+values = ["mode-fast", "mode-slow"]
+
+# ── Raw / unconfigured ────────────────────────────────────────────────────────
+# Placeholders with no entry in runcmd.toml are substituted verbatim — no lookup.
 ```
 
-### Placeholder types
+## Matching logic
 
-| Type | Resolves | Example |
-|------|----------|---------|
-| **lookup** | Suffix-match against a TSV column or directory names | `O` -> `sub-240226O` |
-| **prefix** | Prepend a prefix if missing | `Saline` -> `exp-Saline` |
-| **enum** | Validate against a fixed list of allowed values | `fast` (must be in `values`) |
+All placeholder types use the same algorithm:
 
-`lookup` tries the TSV file first, falls back to scanning directories under
-`scan_dirs`, and errors on ambiguous matches.
+1. **Collect candidates** from `values`, `file`, and/or `scan_dirs` (any
+   combination).
+2. **Score each candidate** against your argument — score =
+   `len(arg) / len(candidate)`, case-insensitive substring match; exact match
+   = 1.0.
+3. **Unique top scorer wins.**  If two candidates tie (same score), `runcmd`
+   lists them and asks you to be more specific.
+4. **No candidates configured** → raw substitution: return `prefix + arg`.
 
-Add your own type and rule in ...?
+Examples with `prefix = "sub-"` and candidates `sub-001A  sub-002B  sub-003C`:
+
+| Arg | Match | Score |
+|-----|-------|-------|
+| `A` | `sub-001A` | 1/8 |
+| `001A` | `sub-001A` | 4/8 |
+| `sub-001A` | `sub-001A` | exact (1.0) |
+| `A` + `sub-999A` also present | ambiguous | tie at 1/8 |
+
+## Lookup file formats
+
+`runcmd` auto-detects the format from the file extension:
+
+| Extension | Format | Notes |
+|-----------|--------|-------|
+| `.tsv` | Tab-separated | `column` or `column_name` selects the field |
+| `.csv` | Comma-separated | same |
+| `.json` | JSON | array → elements; object → keys |
+| anything else | Plain text | one candidate per line |
+
+Override auto-detection with `separator = "\t"` (or any delimiter).
 
 ## Usage
 
@@ -74,15 +109,18 @@ runcmd <script> [args...]
 - **Positional args** map to `{placeholder}` tokens in the order they appear
   in the command. No flags needed.
 - **No placeholders?** Just `runcmd prepare_metadata.py` — no extra args.
+- **Typo in script name?** `runcmd` suggests the closest scripts that have a
+  `datalad run` block: `Error: 'proc' not found. Did you mean: process.py`
 - **Multiple `datalad run` blocks?** The one whose concrete `-i`/`-o` paths
   best match your current directory is selected automatically.
 - **Works from subdirectories** — config is found by walking up from cwd.
+- **Resolution info** is printed to stderr so you can see what matched.
 
 ## Example
 
 All the following calls return the same `datalad run` command:
 ```console
-$ runcmd run_suite2p O Saline                    # shortest command                                                                                             
-$ runcmd run_suite2p 240226O Saline              # arbitrarily specific command                                                                             
-$ runcmd run_suite2p.py sub-240226I exp-Saline   # full command                                                                       
+$ runcmd run_suite2p O Saline                    # shortest
+$ runcmd run_suite2p 240226O Saline              # more specific
+$ runcmd run_suite2p.py sub-240226O exp-Saline   # fully qualified
 ```
