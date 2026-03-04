@@ -15,8 +15,9 @@ datalad run \
 	"./code/src/process2p/run_suite2p.py {inputs} {outputs}"
 ```
 
-`O` suffix-matched to `sub-240226O` via a TSV lookup. `Saline` got the `exp-`
-prefix prepended. The command template lives in the script's own docstring.
+`O` auto-matched to `sub-240226O` via a lookup table, since it is uniquely assigned to one subject. If multiple subject 
+IDs contained `O`, all would have been listed. Likewise `Saline` matched to `exp-Saline`. The command template lives in the 
+script's own docstring.
 
 **Python 3.11+, stdlib only, no runtime dependencies.**
 
@@ -40,22 +41,15 @@ Create `.datalad/runcmd.toml` at the root of your DataLad dataset:
 
 ```toml
 [runcmd]
-script_dirs = [
-    "code/src/process2p", 
-    "code/src/tools"
-]                                     # path to dirs containing your script
+script_dirs = ["path/to/script/dir"]    # path to dirs containing your script
 
-[runcmd.placeholders.sub-id]		  # placeholder variable, here: 'sub-id'
-type = "lookup"
-file = "inputs/subjects.tsv"          # lookup table containing all sub-ids
-column = 0                            # 0-indexed, column to lookup
-prefix = "sub-"				          # prefix as identifier
+# add a rule for each placeholder variable
+[runcmd.placeholders.sub-id]            # placeholder variable, e.g. 'sub-id', 'ses-id' 
+type = "lookup"                         # lookup table containing all sub-ids
+file = "path/to/tsv"                    
+column = 0                              # 0-indexed, column to lookup
 skip_header = true
-scan_dirs = ["01_suite2p"]    		  # fallback: scan for matching dirs
-
-[runcmd.placeholders.exp-drug]		  # placeholder variable, here 'exp-drug'
-type = "prefix"				          # simply add prefix 'exp-'
-prefix = "exp-"
+scan_dirs = ["path/to/sub/dir"]         # fallback: scan for matching dirs
 ```
 
 ### Placeholder types
@@ -69,7 +63,7 @@ prefix = "exp-"
 `lookup` tries the TSV file first, falls back to scanning directories under
 `scan_dirs`, and errors on ambiguous matches.
 
-Add your own type and rule in ...
+Add your own type and rule in ...?
 
 ## Usage
 
@@ -84,3 +78,11 @@ runcmd <script> [args...]
   best match your current directory is selected automatically.
 - **Works from subdirectories** — config is found by walking up from cwd.
 
+## Example
+
+All the following calls return the same `datalad run` command:
+```console
+$ runcmd run_suite2p O Saline                    # shortest command                                                                                             
+$ runcmd run_suite2p 240226O Saline              # arbitrarily specific command                                                                             
+$ runcmd run_suite2p.py sub-240226I exp-Saline   # full command                                                                       
+```
