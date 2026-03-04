@@ -12,14 +12,14 @@ datalad run \
 	-i "inputs/L5b_2p/sub-240226O/exp-Saline/ses-pre" \
 	-i "inputs/L5b_2p/sub-240226O/exp-Saline/ses-post" \
 	-i "inputs/L5b_2p/subjects.tsv" \
-	-i "inputs/L5b_2p/recordings.tsv" \
 	-o "01_suite2p/sub-240226O/exp-Saline" \
 	"./code/src/process2p/run_suite2p.py {inputs} {outputs}"
 ```
 
-`O` uniquely matched `sub-240226O` via a lookup table. If multiple subject IDs
-contained `O`, all would have been listed. `Saline` → `exp-Saline` via a
-prefix rule.  The command template lives in the script's own docstring.
+`O` uniquely identified `sub-240226O`: the tool stripped the common prefix
+`sub-` shared by all subjects, leaving unique parts like `240226O`, `240226I`,
+etc., and matched `O` to `240226O`.  `Saline` matched `exp-Saline` the same
+way.  The command template lives in the script's own docstring.
 
 **Python 3.11+, stdlib only, no runtime dependencies.**
 
@@ -34,7 +34,7 @@ prefix rule.  The command template lives in the script's own docstring.
 ## Installation
 
 ```bash
-uv tool install -e /path/to/datalad-runcmd   # local editable install as system CLI-tool
+uv tool install -e /path/to/datalad-runcmd   # local editable install as CLI tool
 ```
 
 ## Configuration
@@ -50,7 +50,7 @@ script_dirs = ["path/to/script/dir"]
 file = "inputs/subjects.tsv"   # TSV, CSV, JSON, or plain text  (see below)
 column = 0                     # 0-indexed column  (or use column_name = "participant_id")
 skip_header = true
-prefix = "sub-"                # keep only candidates that start with this prefix
+prefix = "sub-"                # optional: keep only candidates that start with this
 scan_dirs = ["01_data"]        # fallback: scan for matching subdirectories
 
 # ── Prefix-only (no lookup table) ─────────────────────────────────────────────
@@ -58,38 +58,47 @@ scan_dirs = ["01_data"]        # fallback: scan for matching subdirectories
 prefix = "exp-"                # prepend prefix when missing; arg is used as-is
 
 # ── Explicit list ─────────────────────────────────────────────────────────────
-[runcmd.placeholders.mode]
-values = ["mode-fast", "mode-slow"]
+[runcmd.placeholders.ses-id]
+values = ["ses-pre-01", "ses-mid-01", "ses-post-01"]
 
-# ── Raw / unconfigured ────────────────────────────────────────────────────────
-# Placeholders with no entry in runcmd.toml are substituted verbatim — no lookup.
+# ── Unconfigured placeholders ─────────────────────────────────────────────────
+# Placeholders with no entry in runcmd.toml are substituted verbatim.
 ```
 
 ## Matching logic
 
 All placeholder types use the same algorithm:
 
-1. **Collect candidates** from `values`, `file`, and/or `scan_dirs` (any
-   combination).
-2. **Score each candidate** against your argument — score =
-   `len(arg) / len(candidate)`, case-insensitive substring match; exact match
-   = 1.0.
-3. **Unique top scorer wins.**  If two candidates tie (same score), `runcmd`
-   lists them and asks you to be more specific.
-4. **No candidates configured** → raw substitution: return `prefix + arg`.
+1. **Collect candidates** from `values`, `file`, and/or `scan_dirs`.
+2. **Strip the common affix** shared by all candidates, trimmed to the
+   nearest separator (`-`, `_`, `.`), to isolate each candidate's *unique
+   part*:
 
-Examples with `prefix = "sub-"` and candidates `sub-001A  sub-002B  sub-003C`:
+   | Candidates | Common affix stripped | Unique parts |
+   |---|---|---|
+   | `sub-001A  sub-002B  sub-003C` | prefix `sub-` | `001A  002B  003C` |
+   | `ses-pre-01  ses-mid-01  ses-post-01` | prefix `ses-`, suffix `-01` | `pre  mid  post` |
+   | `exp-Saline  exp-LSD` | prefix `exp-` | `Saline  LSD` |
 
-| Arg | Match | Score |
-|-----|-------|-------|
-| `A` | `sub-001A` | 1/8 |
-| `001A` | `sub-001A` | 4/8 |
-| `sub-001A` | `sub-001A` | exact (1.0) |
-| `A` + `sub-999A` also present | ambiguous | tie at 1/8 |
+3. **Score** each candidate against your argument — case-insensitive
+   substring match in the unique part; score = `len(arg) / len(unique_part)`;
+   full-string exact match = 1.0.
+4. **Unique top scorer wins.**  Ties (same score) list all tied candidates and
+   ask you to be more specific.
+5. **No candidates configured** → raw substitution: return `prefix + arg`.
+
+Examples with unique parts `001A  002B  003C`:
+
+| Arg | Matches | Result |
+|-----|---------|--------|
+| `A` | `001A` only | `sub-001A` |
+| `001A` | exact on `001A` | `sub-001A` |
+| `sub-001A` | exact on full string | `sub-001A` |
+| `00` | `001A` and `002A` (if present) equally | ambiguous error |
 
 ## Lookup file formats
 
-`runcmd` auto-detects the format from the file extension:
+Auto-detected by extension:
 
 | Extension | Format | Notes |
 |-----------|--------|-------|
@@ -106,21 +115,21 @@ Override auto-detection with `separator = "\t"` (or any delimiter).
 runcmd <script> [args...]
 ```
 
-- **Positional args** map to `{placeholder}` tokens in the order they appear
-  in the command. No flags needed.
-- **No placeholders?** Just `runcmd prepare_metadata.py` — no extra args.
-- **Typo in script name?** `runcmd` suggests the closest scripts that have a
-  `datalad run` block: `Error: 'proc' not found. Did you mean: process.py`
-- **Multiple `datalad run` blocks?** The one whose concrete `-i`/`-o` paths
-  best match your current directory is selected automatically.
+- **Positional args** map to `{placeholder}` tokens in order of appearance.
+  No flags needed.
+- **No placeholders?** `runcmd prepare_metadata.py` — no extra args.
+- **Typo in script name?** Closest scripts with a `datalad run` block are
+  suggested: `'proc' not found. Did you mean: process.py`
+- **Multiple `datalad run` blocks?** The one whose `-i`/`-o` paths best
+  match the current directory is selected automatically.
 - **Works from subdirectories** — config is found by walking up from cwd.
-- **Resolution info** is printed to stderr so you can see what matched.
+- **Resolution info** printed to stderr shows what each arg matched to.
 
-## Example
+## Examples
 
-All the following calls return the same `datalad run` command:
+All equivalent:
 ```console
-$ runcmd run_suite2p O Saline                    # shortest
+$ runcmd run_suite2p O Saline                    # minimal
 $ runcmd run_suite2p 240226O Saline              # more specific
 $ runcmd run_suite2p.py sub-240226O exp-Saline   # fully qualified
 ```
