@@ -8,7 +8,7 @@ import argparse
 from pathlib import Path
 
 from .config import load_config
-from .extract import extract_datalad_cmds, find_script, pick_cmd_for_cwd
+from .extract import extract_datalad_cmds, find_script, find_script_candidates, pick_cmd_for_cwd
 from .resolve import ResolutionError, resolve_placeholder
 
 
@@ -56,6 +56,12 @@ def main(argv: list[str] | None = None) -> None:
 
     script_path = find_script(parsed.script, cfg.script_dirs)
     if script_path is None:
+        candidates = find_script_candidates(parsed.script, cfg.script_dirs)
+        if candidates:
+            suggestions = "\n".join(f"  {p.name}" for p in candidates)
+            sys.exit(
+                f"Error: '{parsed.script}' not found. Did you mean:\n{suggestions}"
+            )
         sys.exit(
             f"Error: '{parsed.script}' not found in "
             f"{[str(d) for d in cfg.script_dirs]}"
@@ -69,7 +75,6 @@ def main(argv: list[str] | None = None) -> None:
     placeholders = _find_placeholders(cmd)
 
     if len(parsed.args) < len(placeholders):
-        missing = placeholders[len(parsed.args) :]
         sys.exit(
             f"Error: this script requires {len(placeholders)} argument(s) "
             f"({', '.join(placeholders)}), got {len(parsed.args)}"
@@ -85,6 +90,7 @@ def main(argv: list[str] | None = None) -> None:
                 resolved = resolve_placeholder(arg, spec, cfg.root)
             except ResolutionError as exc:
                 sys.exit(f"Error resolving {{{name}}}: {exc}")
+            print(f"  {{{name}}}: {arg!r} -> {resolved!r}", file=sys.stderr)
             cmd = cmd.replace(f"{{{name}}}", resolved)
 
     print(cmd)

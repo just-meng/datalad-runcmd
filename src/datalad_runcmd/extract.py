@@ -18,6 +18,27 @@ def find_script(name: str, script_dirs: list[Path]) -> Path | None:
     return None
 
 
+def find_script_candidates(name: str, script_dirs: list[Path]) -> list[Path]:
+    """Return scripts with names similar to *name* that contain datalad run blocks.
+
+    Used when :func:`find_script` returns ``None``.  Candidates are scripts
+    whose stem contains the search term (case-insensitive) and that have at
+    least one ``datalad run`` block in their docstring.  Results are sorted
+    from most to least specific (score = ``len(name) / len(stem)``).
+    """
+    stem = name.removesuffix(".py").lower()
+    scored: list[tuple[float, Path]] = []
+    for d in script_dirs:
+        if not d.is_dir():
+            continue
+        for py in sorted(d.glob("*.py")):
+            py_stem = py.stem.lower()
+            if stem in py_stem and extract_datalad_cmds(py):
+                scored.append((len(stem) / len(py_stem), py))
+    scored.sort(key=lambda t: -t[0])
+    return [p for _, p in scored]
+
+
 def _extract_one_cmd(content: str, start: int) -> str:
     """Extract a single datalad run block starting at *start*."""
     lines = content[start:].split("\n")

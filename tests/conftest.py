@@ -10,7 +10,6 @@ TOML_CONTENT = """\
 script_dirs = ["code/src/pipeline", "code/src/tools"]
 
 [runcmd.placeholders.sub-id]
-type = "lookup"
 file = "inputs/subjects.tsv"
 column = 0
 prefix = "sub-"
@@ -18,7 +17,6 @@ skip_header = true
 scan_dirs = ["01_data", "02_processed"]
 
 [runcmd.placeholders.exp-drug]
-type = "prefix"
 prefix = "exp-"
 """
 

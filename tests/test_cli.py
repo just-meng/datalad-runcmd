@@ -19,6 +19,15 @@ def test_cli_with_placeholders(project: Path, capsys, monkeypatch):
     assert "datalad run" in out
 
 
+def test_cli_resolution_info_to_stderr(project: Path, capsys, monkeypatch):
+    """Configured placeholders print resolution info to stderr."""
+    monkeypatch.chdir(project)
+    main(["process", "A", "Saline"])
+    err = capsys.readouterr().err
+    assert "sub-001A" in err
+    assert "exp-Saline" in err
+
+
 def test_cli_no_placeholders(project: Path, capsys, monkeypatch):
     monkeypatch.chdir(project)
     main(["prepare_metadata"])
@@ -39,6 +48,15 @@ def test_cli_script_not_found(project: Path, monkeypatch):
         main(["nonexistent"])
 
 
+def test_cli_fuzzy_suggestion(project: Path, monkeypatch):
+    """When exact script not found, fuzzy candidates with runcmd blocks shown."""
+    monkeypatch.chdir(project)
+    with pytest.raises(SystemExit) as exc_info:
+        main(["proc"])  # matches "process"
+    assert "Did you mean" in str(exc_info.value)
+    assert "process.py" in str(exc_info.value)
+
+
 def test_cli_no_config(tmp_path: Path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     with pytest.raises(SystemExit, match="runcmd.toml"):
@@ -47,7 +65,6 @@ def test_cli_no_config(tmp_path: Path, monkeypatch):
 
 def test_cli_unconfigured_placeholder(project: Path, capsys, monkeypatch):
     """Placeholders not in config are substituted raw."""
-    # Write a script with an unknown placeholder
     script_dir = project / "code" / "src" / "pipeline"
     (script_dir / "custom.py").write_text('''\
 """Custom script.
@@ -93,3 +110,12 @@ def test_cli_from_subdirectory(project: Path, capsys, monkeypatch):
     out = capsys.readouterr().out.strip()
     assert "sub-001A" in out
     assert "exp-LSD" in out
+
+
+def test_cli_case_insensitive_lookup_match(project: Path, capsys, monkeypatch):
+    """Lookup matching is case-insensitive (raw-mode placeholders are not affected)."""
+    monkeypatch.chdir(project)
+    # 'a' lower-case still resolves to 'sub-001A' via TSV lookup
+    main(["process", "a", "Saline"])
+    out = capsys.readouterr().out.strip()
+    assert "sub-001A" in out
