@@ -1,0 +1,22 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "datalad-runcmd"
+version = "0.1.0"
+description = "Extract and resolve datalad run commands from script docstrings"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [
+    { name = "Jiameng Wu", email = "jiameng.wu@gmail.com" },
+]
+
+[project.scripts]
+runcmd = "datalad_runcmd.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/datalad_runcmd"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
