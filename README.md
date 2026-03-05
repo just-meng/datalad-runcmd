@@ -4,7 +4,7 @@ Stop copy-pasting `datalad run` commands. Embed them in your scripts, type
 short aliases, and let `runcmd` do the rest.
 
 ```console
-$ runcmd run_suite2p.py O Saline
+$ runcmd run_suite2p.py O saline
 datalad run \
 	-m "Run suite2p for sub-240226O, exp-Saline" \
 	-i "inputs/L5b_2p/sub-240226O/exp-Saline/ses-pre" \
@@ -14,10 +14,9 @@ datalad run \
 	"./code/src/process2p/run_suite2p.py {inputs} {outputs}"
 ```
 
-`O` uniquely identified `sub-240226O`: the tool stripped the common prefix
-`sub-` shared by all subjects, leaving unique parts like `240226O`, `240226I`,
-etc., and matched `O` to `240226O`.  `Saline` matched `exp-Saline` the same
-way.  The command template lives in the script's own docstring.
+The tool **looks up** which `sub-id` matches `O` and which `exp-id` matches `saline`,
+and **replaces** all occurrences in the command template with the full IDs: `sub-240226O`, 
+`exp-Saline`. The command template simply lives inside the docstring of the script `run_suite2p.py`.
 
 **Python 3.11+, stdlib only, no runtime dependencies.**
 
@@ -126,7 +125,7 @@ runcmd <script> [args...]
 
 All equivalent:
 ```console
-$ runcmd run_suite2p O Saline                    # minimal
+$ runcmd run_suite2p O Sal                       # minimal
 $ runcmd run_suite2p 240226O Saline              # more specific
 $ runcmd run_suite2p.py sub-240226O exp-Saline   # fully qualified
 ```
