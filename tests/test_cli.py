@@ -19,13 +19,16 @@ def test_cli_with_placeholders(project: Path, capsys, monkeypatch):
     assert "datalad run" in out
 
 
-def test_cli_resolution_info_to_stderr(project: Path, capsys, monkeypatch):
-    """Configured placeholders print resolution info to stderr."""
+def test_cli_orphaned_config_key_warning(project: Path, capsys, monkeypatch):
+    """Config keys not used by any script produce a warning on stderr."""
+    # Add a config key that no script references
+    toml = project / ".datalad" / "runcmd.toml"
+    toml.write_text(toml.read_text() + '\n[runcmd.placeholders.exp-id]\nprefix = "exp-"\n')
     monkeypatch.chdir(project)
     main(["process", "A", "Saline"])
     err = capsys.readouterr().err
-    assert "sub-001A" in err
-    assert "exp-Saline" in err
+    assert "exp-id" in err
+    assert "Warning" in err
 
 
 def test_cli_no_placeholders(project: Path, capsys, monkeypatch):

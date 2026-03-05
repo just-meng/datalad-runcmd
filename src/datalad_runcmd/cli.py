@@ -15,6 +15,18 @@ from .resolve import ResolutionError, resolve_placeholder
 _DATALAD_PLACEHOLDERS = frozenset({"inputs", "outputs"})
 
 
+def _all_script_placeholders(script_dirs: list[Path]) -> set[str]:
+    """Collect every placeholder name used across all scripts in *script_dirs*."""
+    names: set[str] = set()
+    for d in script_dirs:
+        if not d.is_dir():
+            continue
+        for py in d.glob("*.py"):
+            for cmd in extract_datalad_cmds(py):
+                names.update(_find_placeholders(cmd))
+    return names
+
+
 def _find_placeholders(cmd: str) -> list[str]:
     """Return placeholder names in order of first appearance in *cmd*.
 
@@ -93,6 +105,12 @@ def main(argv: list[str] | None = None) -> None:
             cmd = cmd.replace(f"{{{name}}}", resolved)
 
     print(cmd)
+
+    # Lint: warn about config keys that no script uses
+    used = _all_script_placeholders(cfg.script_dirs)
+    orphaned = sorted(set(cfg.placeholders) - used)
+    for key in orphaned:
+        print(f"Warning: config defines {{'{key}'}} but no script uses it", file=sys.stderr)
 
 
 if __name__ == "__main__":
