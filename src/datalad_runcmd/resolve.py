@@ -257,7 +257,5 @@ def resolve_placeholder(arg: str, spec: PlaceholderSpec, root: Path) -> str:
         return best[0]
 
     raise ResolutionError(
-        f"Ambiguous '{arg}' — {len(best)} candidates match equally:\n"
-        + "\n".join(f"  {c}" for c in sorted(best))
-        + "\nPlease be more specific."
+        f"Ambiguous '{arg}': " + ", ".join(sorted(best))
     )

@@ -5,8 +5,6 @@ short aliases, and let `runcmd` do the rest.
 
 ```console
 $ runcmd run_suite2p.py O Saline
-  {sub-id}: 'O' -> 'sub-240226O'
-  {exp-drug}: 'Saline' -> 'exp-Saline'
 datalad run \
 	-m "Run suite2p for sub-240226O, exp-Saline" \
 	-i "inputs/L5b_2p/sub-240226O/exp-Saline/ses-pre" \
@@ -53,13 +51,13 @@ skip_header = true
 prefix = "sub-"                # optional: keep only candidates that start with this
 scan_dirs = ["01_data"]        # fallback: scan for matching subdirectories
 
-# ── Prefix-only (no lookup table) ─────────────────────────────────────────────
-[runcmd.placeholders.exp-drug]
-prefix = "exp-"                # prepend prefix when missing; arg is used as-is
-
 # ── Explicit list ─────────────────────────────────────────────────────────────
+[runcmd.placeholders.exp-id]   # match to a list of values instead of a lookup table
+values = ["exp-Ketamine", "exp-LSD", "exp-Saline", "exp-Saline2", "exp-Lisuride"]
+
+# ── Prefix-only (no lookup table) ─────────────────────────────────────────────
 [runcmd.placeholders.ses-id]
-values = ["ses-pre-01", "ses-mid-01", "ses-post-01"]
+prefix = "ses-"                # prepend prefix when missing, no matching; e.g. pre -> ses-pre
 
 # ── Unconfigured placeholders ─────────────────────────────────────────────────
 # Placeholders with no entry in runcmd.toml are substituted verbatim.
@@ -83,8 +81,8 @@ All placeholder types use the same algorithm:
 3. **Score** each candidate against your argument — case-insensitive
    substring match in the unique part; score = `len(arg) / len(unique_part)`;
    full-string exact match = 1.0.
-4. **Unique top scorer wins.**  Ties (same score) list all tied candidates and
-   ask you to be more specific.
+4. **Unique top scorer wins.**  Ties print a one-line error listing the
+   candidates: `Ambiguous '00': sub-001A, sub-002A`.
 5. **No candidates configured** → raw substitution: return `prefix + arg`.
 
 Examples with unique parts `001A  002B  003C`:
@@ -123,7 +121,6 @@ runcmd <script> [args...]
 - **Multiple `datalad run` blocks?** The one whose `-i`/`-o` paths best
   match the current directory is selected automatically.
 - **Works from subdirectories** — config is found by walking up from cwd.
-- **Resolution info** printed to stderr shows what each arg matched to.
 
 ## Examples
 

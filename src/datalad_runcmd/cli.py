@@ -89,8 +89,7 @@ def main(argv: list[str] | None = None) -> None:
             try:
                 resolved = resolve_placeholder(arg, spec, cfg.root)
             except ResolutionError as exc:
-                sys.exit(f"Error resolving {{{name}}}: {exc}")
-            print(f"  {{{name}}}: {arg!r} -> {resolved!r}", file=sys.stderr)
+                sys.exit(str(exc))
             cmd = cmd.replace(f"{{{name}}}", resolved)
 
     print(cmd)

@@ -24,7 +24,7 @@ UV_CACHE_DIR=/tmp/uv-cache uv pip install --python .venv/bin/python -e ".[dev]"
 
 The pipeline is: **CLI → Config → Extract → Resolve**.
 
-- **cli.py** — Entry point (`runcmd` command). Parses args, orchestrates the pipeline: load config, find script, extract commands, match positional args to placeholders, resolve, print. Prints resolution info (`{name}: arg -> resolved`) to stderr. Falls back to fuzzy script suggestions (`find_script_candidates`) when exact match fails.
+- **cli.py** — Entry point (`runcmd` command). Parses args, orchestrates the pipeline: load config, find script, extract commands, match positional args to placeholders, resolve, print. Falls back to fuzzy script suggestions (`find_script_candidates`) when exact match fails.
 - **config.py** — Loads `.datalad/runcmd.toml` by walking up from cwd. Defines `Config` and `PlaceholderSpec` dataclasses. No `type` field — behaviour is inferred from which sources are configured.
 - **extract.py** — Finds scripts in configured `script_dirs` (exact), or suggests fuzzy candidates via `find_script_candidates()`. Extracts `datalad run` command blocks from docstrings (handles multi-line with backslash continuation). Picks the best command for cwd by scoring path matches.
 - **resolve.py** — Single unified resolution algorithm:
@@ -51,13 +51,13 @@ skip_header = true
 prefix = "sub-"         # optional: filter to candidates starting with prefix
 scan_dirs = ["path/to/sub/dir"]     # fallback: scan for matching subdirs
 
-# Prefix-only (no lookup table) — prepend prefix when missing
-[runcmd.placeholders.ses-id]
-prefix = "ses-"
-
 # Explicit list
-[runcmd.placeholders.mode]
-values = ["mode-fast", "mode-slow"]
+[runcmd.placeholders.exp-drug]
+values = ["exp-Ketamine", "exp-LSD", "exp-Saline", "exp-Saline2", "exp-Lisuride"]
+
+# Prefix-only (no lookup table) — prepend prefix when missing; arg is used as-is
+[runcmd.placeholders.ses-id]
+prefix = "ses-"                # e.g. pre -> ses-pre, post -> ses-post
 ```
 
 ## Key Conventions
