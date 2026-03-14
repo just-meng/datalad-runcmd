@@ -6,6 +6,7 @@ build-backend = "hatchling.build"
 name = "datalad-runcmd"
 version = "0.1.0"
 description = "Extract and resolve datalad run commands from script docstrings"
+readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
 authors = [
@@ -17,6 +18,9 @@ dev = ["pytest>=7"]
 
 [project.scripts]
 runcmd = "datalad_runcmd.cli:main"
+
+[project.entry-points."datalad.extensions"]
+runcmd = "datalad_runcmd:command_suite"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/datalad_runcmd"]
