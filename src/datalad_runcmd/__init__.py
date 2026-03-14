@@ -1,6 +1,6 @@
 """Extract and resolve datalad run commands from script docstrings."""
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 # DataLad extension registration
 # This tuple tells datalad where to find the command suite:
