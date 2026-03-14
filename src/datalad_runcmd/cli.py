@@ -45,6 +45,82 @@ def _find_placeholders(cmd: str) -> list[str]:
     return result
 
 
+def resolve_command(script: str, args: list[str], cwd: Path | None = None) -> str:
+    """Find a script, extract its datalad run command, and resolve placeholders.
+
+    Parameters
+    ----------
+    script : str
+        Script filename (e.g. ``run_fissa.py``).
+    args : list[str]
+        Positional arguments mapped to placeholders in occurrence order.
+    cwd : Path, optional
+        Working directory for config lookup and command selection.
+        Defaults to ``Path.cwd()``.
+
+    Returns
+    -------
+    str
+        The fully resolved ``datalad run`` command.
+
+    Raises
+    ------
+    FileNotFoundError
+        If ``.datalad/runcmd.toml`` is not found.
+    ValueError
+        If the script is not found, has no ``datalad run`` block, or
+        the wrong number of arguments is provided.
+    ResolutionError
+        If placeholder resolution fails (ambiguous match, no match, etc.).
+    """
+    if cwd is None:
+        cwd = Path.cwd()
+
+    cfg = load_config(cwd)
+
+    script_path = find_script(script, cfg.script_dirs)
+    if script_path is None:
+        candidates = find_script_candidates(script, cfg.script_dirs)
+        if candidates:
+            suggestions = "\n".join(f"  {p.name}" for p in candidates)
+            raise ValueError(
+                f"'{script}' not found. Did you mean:\n{suggestions}"
+            )
+        raise ValueError(
+            f"'{script}' not found in "
+            f"{[str(d) for d in cfg.script_dirs]}"
+        )
+
+    cmds = extract_datalad_cmds(script_path)
+    if not cmds:
+        raise ValueError(f"no 'datalad run' command found in {script_path.name}")
+
+    cmd = pick_cmd_for_cwd(cmds, cwd)
+    placeholders = _find_placeholders(cmd)
+
+    if len(args) < len(placeholders):
+        raise ValueError(
+            f"this script requires {len(placeholders)} argument(s) "
+            f"({', '.join(placeholders)}), got {len(args)}"
+        )
+
+    for name, arg in zip(placeholders, args):
+        spec = cfg.placeholders.get(name)
+        if spec is None:
+            cmd = cmd.replace(f"{{{name}}}", arg)
+        else:
+            resolved = resolve_placeholder(arg, spec, cfg.root)
+            cmd = cmd.replace(f"{{{name}}}", resolved)
+
+    # Lint: warn about config keys that no script uses
+    used = _all_script_placeholders(cfg.script_dirs)
+    orphaned = sorted(set(cfg.placeholders) - used)
+    for key in orphaned:
+        print(f"Warning: config defines {{'{key}'}} but no script uses it", file=sys.stderr)
+
+    return cmd
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
         prog="runcmd",
@@ -59,58 +135,12 @@ def main(argv: list[str] | None = None) -> None:
     )
     parsed = parser.parse_args(argv)
 
-    cwd = Path.cwd()
-
     try:
-        cfg = load_config(cwd)
-    except FileNotFoundError as exc:
+        cmd = resolve_command(parsed.script, parsed.args)
+    except (FileNotFoundError, ValueError, ResolutionError) as exc:
         sys.exit(f"Error: {exc}")
 
-    script_path = find_script(parsed.script, cfg.script_dirs)
-    if script_path is None:
-        candidates = find_script_candidates(parsed.script, cfg.script_dirs)
-        if candidates:
-            suggestions = "\n".join(f"  {p.name}" for p in candidates)
-            sys.exit(
-                f"Error: '{parsed.script}' not found. Did you mean:\n{suggestions}"
-            )
-        sys.exit(
-            f"Error: '{parsed.script}' not found in "
-            f"{[str(d) for d in cfg.script_dirs]}"
-        )
-
-    cmds = extract_datalad_cmds(script_path)
-    if not cmds:
-        sys.exit(f"Error: no 'datalad run' command found in {script_path.name}")
-
-    cmd = pick_cmd_for_cwd(cmds, cwd)
-    placeholders = _find_placeholders(cmd)
-
-    if len(parsed.args) < len(placeholders):
-        sys.exit(
-            f"Error: this script requires {len(placeholders)} argument(s) "
-            f"({', '.join(placeholders)}), got {len(parsed.args)}"
-        )
-
-    for name, arg in zip(placeholders, parsed.args):
-        spec = cfg.placeholders.get(name)
-        if spec is None:
-            # No config for this placeholder — substitute raw value
-            cmd = cmd.replace(f"{{{name}}}", arg)
-        else:
-            try:
-                resolved = resolve_placeholder(arg, spec, cfg.root)
-            except ResolutionError as exc:
-                sys.exit(str(exc))
-            cmd = cmd.replace(f"{{{name}}}", resolved)
-
     print(cmd)
-
-    # Lint: warn about config keys that no script uses
-    used = _all_script_placeholders(cfg.script_dirs)
-    orphaned = sorted(set(cfg.placeholders) - used)
-    for key in orphaned:
-        print(f"Warning: config defines {{'{key}'}} but no script uses it", file=sys.stderr)
 
 
 if __name__ == "__main__":

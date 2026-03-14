@@ -10,6 +10,7 @@ Requires DataLad to be installed.
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -58,11 +59,10 @@ try:
             args=None,
             dataset=None,
         ):
-            from pathlib import Path
-
             from datalad.distribution.dataset import require_dataset
 
-            from datalad_runcmd.cli import _find_placeholders, main
+            from datalad_runcmd.cli import resolve_command
+            from datalad_runcmd.resolve import ResolutionError
 
             ds = require_dataset(
                 dataset,
@@ -70,51 +70,27 @@ try:
                 purpose="resolve runcmd",
             )
 
-            # Delegate to the CLI main with the resolved dataset path as cwd
-            import os
-            import sys
-            from io import StringIO
-
-            argv = [script] + (args or [])
-
-            # Capture stdout to get the resolved command
-            old_cwd = os.getcwd()
-            old_stdout = sys.stdout
-            buf = StringIO()
             try:
-                os.chdir(ds.path)
-                sys.stdout = buf
-                main(argv)
-                sys.stdout = old_stdout
-                output = buf.getvalue().strip()
-            except SystemExit as exc:
-                sys.stdout = old_stdout
-                msg = buf.getvalue().strip() or str(exc)
+                cmd = resolve_command(
+                    script,
+                    args or [],
+                    cwd=Path(ds.path),
+                )
+            except (FileNotFoundError, ValueError, ResolutionError) as exc:
                 yield get_status_dict(
                     action="runcmd",
                     ds=ds,
                     status="error",
-                    message=msg,
+                    message=str(exc),
                     type="dataset",
                 )
                 return
-            finally:
-                os.chdir(old_cwd)
-
-            # Split output: last non-warning line is the command,
-            # warning lines go to stderr
-            lines = output.split("\n")
-            cmd_lines = [l for l in lines if not l.startswith("Warning:")]
-            warnings = [l for l in lines if l.startswith("Warning:")]
-
-            for w in warnings:
-                logger.warning(w)
 
             yield get_status_dict(
                 action="runcmd",
                 ds=ds,
                 status="ok",
-                message="\n".join(cmd_lines),
+                message=cmd,
                 type="dataset",
             )
 
