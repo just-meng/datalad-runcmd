@@ -15,7 +15,7 @@ datalad run \
 ```
 
 The tool **looks up** which `sub-id` matches `O` and which `exp-id` matches `saline`,
-and **replaces** all occurrences in the command template with the full IDs: `sub-240226O`, 
+and **replaces** all occurrences in the command template with the full IDs: `sub-240226O`,
 `exp-Saline`. The command template simply lives inside the docstring of the script `run_suite2p.py`.
 
 **Python 3.11+, stdlib only, no runtime dependencies.**
@@ -30,8 +30,26 @@ and **replaces** all occurrences in the command template with the full IDs: `sub
 
 ## Installation
 
+As a DataLad extension (recommended):
+
 ```bash
-uv tool install -e /path/to/datalad-runcmd   # local editable install as CLI tool
+uv tool install datalad \
+  --with-editable ~/repos/datalad-runcmd \
+
+```
+
+Standalone:
+
+```bash
+uv tool install -e /path/to/datalad-runcmd
+```
+
+For development:
+
+```bash
+cd datalad-runcmd
+uv venv && source .venv/bin/activate
+uv pip install -e ".[dev]"
 ```
 
 ## Configuration
@@ -60,6 +78,38 @@ prefix = "ses-"                # prepend prefix when missing, no matching; e.g. 
 
 # ── Unconfigured placeholders ─────────────────────────────────────────────────
 # Placeholders with no entry in runcmd.toml are substituted verbatim.
+```
+
+## Usage
+
+### Standalone CLI
+
+```
+runcmd <script> [args...]
+```
+
+- **Positional args** map to `{placeholder}` tokens in order of appearance.
+  No flags needed.
+- **No placeholders?** `runcmd prepare_metadata.py` — no extra args.
+- **Typo in script name?** Closest scripts with a `datalad run` block are
+  suggested: `'proc' not found. Did you mean: process.py`
+- **Multiple `datalad run` blocks?** The one whose `-i`/`-o` paths best
+  match the current directory is selected automatically.
+- **Works from subdirectories** — config is found by walking up from cwd.
+
+### DataLad Command
+
+If DataLad is installed, the tool registers as a DataLad extension:
+
+```bash
+datalad runcmd run_suite2p.py O saline
+datalad runcmd run_fissa.py ket pre
+```
+
+### As a Python Module
+
+```bash
+python -m datalad_runcmd run_suite2p.py O saline
 ```
 
 ## Matching logic
@@ -106,21 +156,6 @@ Auto-detected by extension:
 
 Override auto-detection with `separator = "\t"` (or any delimiter).
 
-## Usage
-
-```
-runcmd <script> [args...]
-```
-
-- **Positional args** map to `{placeholder}` tokens in order of appearance.
-  No flags needed.
-- **No placeholders?** `runcmd prepare_metadata.py` — no extra args.
-- **Typo in script name?** Closest scripts with a `datalad run` block are
-  suggested: `'proc' not found. Did you mean: process.py`
-- **Multiple `datalad run` blocks?** The one whose `-i`/`-o` paths best
-  match the current directory is selected automatically.
-- **Works from subdirectories** — config is found by walking up from cwd.
-
 ## Examples
 
 All equivalent:
@@ -129,3 +164,7 @@ $ runcmd run_suite2p O Sal                       # minimal
 $ runcmd run_suite2p 240226O Saline              # more specific
 $ runcmd run_suite2p.py sub-240226O exp-Saline   # fully qualified
 ```
+
+## License
+
+MIT
