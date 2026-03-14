@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 try:
     from datalad.interface.base import Interface, build_doc
     from datalad.interface.results import get_status_dict
-    from datalad.interface.utils import default_result_renderer
+    from datalad.interface.utils import default_result_renderer, eval_results
     from datalad.support.constraints import EnsureNone, EnsureStr
     from datalad.support.param import Parameter
     from datalad.ui import ui
@@ -65,6 +65,7 @@ try:
                 default_result_renderer(res)
 
         @staticmethod
+        @eval_results
         def __call__(
             script,
             args=None,
