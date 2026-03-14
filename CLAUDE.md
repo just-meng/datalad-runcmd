@@ -6,18 +6,37 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 `datalad-runcmd` extracts `datalad run` commands embedded in Python script docstrings and resolves `{placeholder}` tokens using configuration from `.datalad/runcmd.toml`. Python 3.11+, stdlib only, no runtime dependencies.
 
-## Commands
+## Repository Structure
 
-```bash
-source .venv/bin/activate     # activate dev venv
-python3 -m pytest             # run all tests
-python3 -m pytest tests/test_resolve.py::test_raw_adds_prefix  # single test
+```
+datalad-runcmd/
+├── pyproject.toml         # Build config, dependencies, entry points
+├── README.md              # User-facing documentation
+├── CLAUDE.md              # This file
+└── src/
+    └── datalad_runcmd/
+        ├── __init__.py    # Package init + DataLad extension registration (command_suite)
+        ├── __main__.py    # Entry point for `python -m datalad_runcmd`
+        ├── cli.py         # Standalone CLI (argparse, orchestration)
+        ├── config.py      # Configuration loading from .datalad/runcmd.toml
+        ├── extract.py     # Script discovery and command extraction from docstrings
+        ├── resolve.py     # Placeholder resolution engine
+        └── dl_command.py  # DataLad Interface subclass for `datalad runcmd`
 ```
 
-### First-time dev setup (if .venv doesn't exist)
+## Build and Run
+
 ```bash
-UV_CACHE_DIR=/tmp/uv-cache uv venv .venv
-UV_CACHE_DIR=/tmp/uv-cache uv pip install --python .venv/bin/python -e ".[dev]"
+# Install as a system tool (editable, isolated environment)
+uv tool install -e .
+
+# Run (three equivalent entry points)
+runcmd run_suite2p.py O saline
+datalad runcmd run_suite2p.py O saline   # requires datalad
+python -m datalad_runcmd run_suite2p.py O saline
+
+# Run tests
+uv run --extra dev pytest
 ```
 
 ## Architecture
@@ -59,6 +78,13 @@ values = ["exp-Ketamine", "exp-LSD", "exp-Saline", "exp-Saline2", "exp-Lisuride"
 [runcmd.placeholders.ses-id]
 prefix = "ses-"                # e.g. pre -> ses-pre, post -> ses-post
 ```
+
+### DataLad Extension Registration
+
+- `__init__.py` exports `command_suite` tuple
+- `dl_command.py` defines `RunCmd(Interface)` with `_params_` dict and `@build_doc`
+- `pyproject.toml` registers under `[project.entry-points."datalad.extensions"]`
+- `dl_command.py` gracefully degrades to a stub class when DataLad is not installed
 
 ## Key Conventions
 
