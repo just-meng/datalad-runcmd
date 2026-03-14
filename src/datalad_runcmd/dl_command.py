@@ -17,8 +17,10 @@ logger = logging.getLogger(__name__)
 try:
     from datalad.interface.base import Interface, build_doc
     from datalad.interface.results import get_status_dict
+    from datalad.interface.utils import default_result_renderer
     from datalad.support.constraints import EnsureNone, EnsureStr
     from datalad.support.param import Parameter
+    from datalad.ui import ui
 
     @build_doc
     class RunCmd(Interface):
@@ -52,6 +54,15 @@ try:
                 constraints=EnsureStr() | EnsureNone(),
             ),
         )
+
+        @staticmethod
+        def custom_result_renderer(res, **kwargs):
+            if res["action"] != "runcmd":
+                default_result_renderer(res)
+            elif res["status"] == "ok":
+                ui.message(res["message"])
+            else:
+                default_result_renderer(res)
 
         @staticmethod
         def __call__(
