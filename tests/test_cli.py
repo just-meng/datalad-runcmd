@@ -60,9 +60,30 @@ def test_cli_fuzzy_suggestion(project: Path, monkeypatch):
     assert "process.py" in str(exc_info.value)
 
 
-def test_cli_no_config(tmp_path: Path, monkeypatch):
+def test_cli_no_config_warns_and_resolves(tmp_path: Path, capsys, monkeypatch):
+    """Without runcmd.toml, placeholders are substituted raw with a warning."""
+    (tmp_path / "myscript.py").write_text('''\
+"""My script.
+
+    datalad run \\
+        -m "Run {subject} {session}" \\
+        "echo {subject} {session}"
+"""
+''')
     monkeypatch.chdir(tmp_path)
-    with pytest.raises(SystemExit, match="runcmd.toml"):
+    main(["myscript", "sub-01", "ses-pre"])
+    captured = capsys.readouterr()
+    assert "Warning" in captured.err
+    assert "runcmd.toml" in captured.err
+    assert "sub-01" in captured.out
+    assert "ses-pre" in captured.out
+    assert "{subject}" not in captured.out
+
+
+def test_cli_no_config_script_not_found(tmp_path: Path, capsys, monkeypatch):
+    """Without runcmd.toml and no matching script, exits with useful error."""
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(SystemExit, match="not found"):
         main(["anything"])
 
 

@@ -7,7 +7,7 @@ import sys
 import argparse
 from pathlib import Path
 
-from .config import load_config
+from .config import Config, load_config
 from .extract import extract_datalad_cmds, find_script, find_script_candidates, pick_cmd_for_cwd
 from .resolve import ResolutionError, resolve_placeholder
 
@@ -65,8 +65,6 @@ def resolve_command(script: str, args: list[str], cwd: Path | None = None) -> st
 
     Raises
     ------
-    FileNotFoundError
-        If ``.datalad/runcmd.toml`` is not found.
     ValueError
         If the script is not found, has no ``datalad run`` block, or
         the wrong number of arguments is provided.
@@ -76,7 +74,15 @@ def resolve_command(script: str, args: list[str], cwd: Path | None = None) -> st
     if cwd is None:
         cwd = Path.cwd()
 
-    cfg = load_config(cwd)
+    try:
+        cfg = load_config(cwd)
+    except FileNotFoundError:
+        print(
+            "Warning: no .datalad/runcmd.toml found — "
+            "using raw placeholder substitution",
+            file=sys.stderr,
+        )
+        cfg = Config(root=cwd, script_dirs=[cwd], placeholders={})
 
     script_path = find_script(script, cfg.script_dirs)
     if script_path is None:
@@ -137,7 +143,7 @@ def main(argv: list[str] | None = None) -> None:
 
     try:
         cmd = resolve_command(parsed.script, parsed.args)
-    except (FileNotFoundError, ValueError, ResolutionError) as exc:
+    except (ValueError, ResolutionError) as exc:
         sys.exit(f"Error: {exc}")
 
     print(cmd)

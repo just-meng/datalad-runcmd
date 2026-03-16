@@ -30,18 +30,14 @@ and **replaces** all occurrences in the command template with the full IDs: `sub
 
 ## Installation
 
-As a DataLad extension (recommended):
+As a DataLad extension (recommended), alongside other extensions:
 
 ```bash
 uv tool install datalad \
-  --with-editable ~/repos/datalad-runcmd \
-
-```
-
-Standalone:
-
-```bash
-uv tool install -e /path/to/datalad-runcmd
+  --with datalad-next \
+  --with datalad-container \
+  --with ~/repos/datalad-runcmd \
+  --force
 ```
 
 For development:
