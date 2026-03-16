@@ -24,7 +24,9 @@ and **replaces** all occurrences in the command template with the full IDs: `sub
 
 1. You write a `datalad run` template in each script's docstring, using
    `{placeholder}` tokens for variable parts.
-2. You describe how to resolve those placeholders in `.datalad/runcmd.toml`.
+2. Optionally, describe how to resolve those placeholders in
+   `.datalad/runcmd.toml` (fuzzy matching, lookup tables, prefix rules).
+   Without a config file, placeholders are substituted verbatim.
 3. `runcmd <script> [args...]` extracts the template, resolves the
    placeholders from your short positional args, and prints the full command.
 
@@ -36,8 +38,7 @@ As a DataLad extension (recommended), alongside other extensions:
 uv tool install datalad \
   --with datalad-next \
   --with datalad-container \
-  --with ~/repos/datalad-runcmd \
-  --force
+  --with datalad-runcmd@git+https://github.com/just-meng/datalad-runcmd.git
 ```
 
 For development:
@@ -50,7 +51,13 @@ uv pip install -e ".[dev]"
 
 ## Configuration
 
-Create `.datalad/runcmd.toml` at the root of your DataLad dataset:
+Configuration is **optional**. Without a `.datalad/runcmd.toml`, `runcmd`
+looks for scripts in the current directory and substitutes placeholders
+verbatim (a warning is printed to stderr). This is useful for simple
+scripts that don't need fuzzy matching or lookup tables.
+
+For full placeholder resolution, create `.datalad/runcmd.toml` at the root
+of your DataLad dataset:
 
 ```toml
 [runcmd]
@@ -92,6 +99,8 @@ runcmd <script> [args...]
 - **Multiple `datalad run` blocks?** The one whose `-i`/`-o` paths best
   match the current directory is selected automatically.
 - **Works from subdirectories** — config is found by walking up from cwd.
+- **No config file?** Scripts are found in cwd and placeholders are
+  substituted verbatim. A warning is printed to stderr.
 
 ### DataLad Command
 
