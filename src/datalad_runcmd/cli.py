@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 import sys
 import argparse
@@ -180,22 +181,46 @@ def resolve_command(
     )
 
 
+def _use_color(stream=None) -> bool:
+    """Return True when ANSI color codes should be used."""
+    if stream is None:
+        stream = sys.stdout
+    if os.environ.get("NO_COLOR"):
+        return False
+    if os.environ.get("FORCE_COLOR"):
+        return True
+    return hasattr(stream, "isatty") and stream.isatty()
+
+
+# ANSI escape helpers — return empty strings when color is disabled.
+def _ansi(code: str, color: bool) -> str:
+    return f"\033[{code}m" if color else ""
+
+
 def _format_warnings(warnings: list[CommandWarning]) -> str:
     """Format warnings for stderr output."""
+    color = _use_color(sys.stderr)
+    yellow = _ansi("33", color)
+    reset = _ansi("0", color)
     lines: list[str] = []
     for w in warnings:
-        lines.append(f"Warning: {w.message}")
+        lines.append(f"{yellow}Warning:{reset} {w.message}")
     return "\n".join(lines)
 
 
 def _format_multi_command(ecmds: list[ExtractedCommand]) -> str:
     """Format multiple commands for display on stdout."""
+    color = _use_color(sys.stdout)
+    green = _ansi("32", color)
+    dim = _ansi("2", color)
+    reset = _ansi("0", color)
+
     parts: list[str] = []
     for i, ecmd in enumerate(ecmds, 1):
         label = ecmd.label or f"Command {i}"
-        marker = " \u2190 best match" if ecmd.is_best else ""
-        header = f"\u2500\u2500 [{i}] {label}{marker} "
-        header += "\u2500" * max(1, 60 - len(header))
+        marker = f" {green}\u2190 best match{reset}" if ecmd.is_best else ""
+        header = f"{dim}\u2500\u2500 [{i}] {label}{reset}{marker} "
+        header += f"{dim}{'─' * max(1, 60 - len(label) - 10)}{reset}"
         parts.append(header)
         parts.append(ecmd.validated)
         parts.append("")

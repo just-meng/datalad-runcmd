@@ -98,9 +98,11 @@ try:
                 )
                 return
 
-            # Emit warnings
-            for w in result.warnings:
-                logger.warning("%s", w.message)
+            # Emit warnings (same colored format as standalone CLI)
+            if result.warnings:
+                from datalad_runcmd.cli import _format_warnings
+
+                ui.message(_format_warnings(result.warnings))
 
             if len(result.all_commands) > 1:
                 from datalad_runcmd.cli import _format_multi_command
