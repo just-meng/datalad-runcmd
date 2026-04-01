@@ -5,14 +5,31 @@ from __future__ import annotations
 import re
 import sys
 import argparse
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from .config import Config, load_config
-from .extract import extract_datalad_cmds, find_script, find_script_candidates, pick_cmd_for_cwd
+from .extract import (
+    CommandWarning,
+    ExtractedCommand,
+    extract_datalad_cmds,
+    find_script,
+    find_script_candidates,
+    score_commands,
+)
 from .resolve import ResolutionError, resolve_placeholder
 
 
 _DATALAD_PLACEHOLDERS = frozenset({"inputs", "outputs"})
+
+
+@dataclass
+class ResolvedResult:
+    """Result of resolving a script's datalad run command(s)."""
+
+    command: str
+    all_commands: list[ExtractedCommand]
+    warnings: list[CommandWarning] = field(default_factory=list)
 
 
 def _all_script_placeholders(script_dirs: list[Path]) -> set[str]:
@@ -22,8 +39,8 @@ def _all_script_placeholders(script_dirs: list[Path]) -> set[str]:
         if not d.is_dir():
             continue
         for py in d.glob("*.py"):
-            for cmd in extract_datalad_cmds(py):
-                names.update(_find_placeholders(cmd))
+            for ecmd in extract_datalad_cmds(py):
+                names.update(_find_placeholders(ecmd.validated))
     return names
 
 
@@ -45,8 +62,10 @@ def _find_placeholders(cmd: str) -> list[str]:
     return result
 
 
-def resolve_command(script: str, args: list[str], cwd: Path | None = None) -> str:
-    """Find a script, extract its datalad run command, and resolve placeholders.
+def resolve_command(
+    script: str, args: list[str], cwd: Path | None = None
+) -> ResolvedResult:
+    """Find a script, extract its datalad run command(s), and resolve placeholders.
 
     Parameters
     ----------
@@ -60,8 +79,9 @@ def resolve_command(script: str, args: list[str], cwd: Path | None = None) -> st
 
     Returns
     -------
-    str
-        The fully resolved ``datalad run`` command.
+    ResolvedResult
+        Contains the resolved best-match command, all extracted commands
+        (scored), and aggregated warnings.
 
     Raises
     ------
@@ -97,11 +117,20 @@ def resolve_command(script: str, args: list[str], cwd: Path | None = None) -> st
             f"{[str(d) for d in cfg.script_dirs]}"
         )
 
-    cmds = extract_datalad_cmds(script_path)
-    if not cmds:
+    ecmds = extract_datalad_cmds(script_path)
+    if not ecmds:
         raise ValueError(f"no 'datalad run' command found in {script_path.name}")
 
-    cmd = pick_cmd_for_cwd(cmds, cwd)
+    score_commands(ecmds, cwd)
+
+    # Collect all warnings from all commands
+    all_warnings: list[CommandWarning] = []
+    for ecmd in ecmds:
+        all_warnings.extend(ecmd.warnings)
+
+    # Resolve placeholders on the best-match command
+    best = ecmds[0]
+    cmd = best.validated
     placeholders = _find_placeholders(cmd)
 
     if len(args) < len(placeholders):
@@ -118,13 +147,59 @@ def resolve_command(script: str, args: list[str], cwd: Path | None = None) -> st
             resolved = resolve_placeholder(arg, spec, cfg.root)
             cmd = cmd.replace(f"{{{name}}}", resolved)
 
+    # Also resolve the other commands for display purposes
+    for ecmd in ecmds:
+        if ecmd is best:
+            continue
+        resolved_cmd = ecmd.validated
+        ecmd_placeholders = _find_placeholders(resolved_cmd)
+        for name, arg in zip(ecmd_placeholders, args):
+            spec = cfg.placeholders.get(name)
+            if spec is None:
+                resolved_cmd = resolved_cmd.replace(f"{{{name}}}", arg)
+            else:
+                try:
+                    resolved_val = resolve_placeholder(arg, spec, cfg.root)
+                    resolved_cmd = resolved_cmd.replace(f"{{{name}}}", resolved_val)
+                except ResolutionError:
+                    pass  # leave unresolved for display
+        ecmd.validated = resolved_cmd
+
+    best.validated = cmd
+
     # Lint: warn about config keys that no script uses
     used = _all_script_placeholders(cfg.script_dirs)
     orphaned = sorted(set(cfg.placeholders) - used)
     for key in orphaned:
         print(f"Warning: config defines {{'{key}'}} but no script uses it", file=sys.stderr)
 
-    return cmd
+    return ResolvedResult(
+        command=cmd,
+        all_commands=ecmds,
+        warnings=all_warnings,
+    )
+
+
+def _format_warnings(warnings: list[CommandWarning]) -> str:
+    """Format warnings for stderr output."""
+    lines: list[str] = []
+    for w in warnings:
+        lines.append(f"Warning: {w.message}")
+    return "\n".join(lines)
+
+
+def _format_multi_command(ecmds: list[ExtractedCommand]) -> str:
+    """Format multiple commands for display on stdout."""
+    parts: list[str] = []
+    for i, ecmd in enumerate(ecmds, 1):
+        label = ecmd.label or f"Command {i}"
+        marker = " \u2190 best match" if ecmd.is_best else ""
+        header = f"\u2500\u2500 [{i}] {label}{marker} "
+        header += "\u2500" * max(1, 60 - len(header))
+        parts.append(header)
+        parts.append(ecmd.validated)
+        parts.append("")
+    return "\n".join(parts)
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -142,11 +217,19 @@ def main(argv: list[str] | None = None) -> None:
     parsed = parser.parse_args(argv)
 
     try:
-        cmd = resolve_command(parsed.script, parsed.args)
+        result = resolve_command(parsed.script, parsed.args)
     except (ValueError, ResolutionError) as exc:
         sys.exit(f"Error: {exc}")
 
-    print(cmd)
+    # Print warnings to stderr
+    if result.warnings:
+        print(_format_warnings(result.warnings), file=sys.stderr)
+
+    # Print command(s) to stdout
+    if len(result.all_commands) > 1:
+        print(_format_multi_command(result.all_commands))
+    else:
+        print(result.command)
 
 
 if __name__ == "__main__":

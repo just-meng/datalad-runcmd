@@ -41,11 +41,11 @@ uv run --extra dev pytest
 
 ## Architecture
 
-The pipeline is: **CLI → Config → Extract → Resolve**.
+The pipeline is: **CLI → Config → Extract → Validate → Resolve**.
 
 - **cli.py** — Entry point (`runcmd` command). Parses args, orchestrates the pipeline: load config, find script, extract commands, match positional args to placeholders, resolve, print. Falls back to fuzzy script suggestions (`find_script_candidates`) when exact match fails.
 - **config.py** — Loads `.datalad/runcmd.toml` by walking up from cwd. Defines `Config` and `PlaceholderSpec` dataclasses. No `type` field — behaviour is inferred from which sources are configured.
-- **extract.py** — Finds scripts in configured `script_dirs` (exact), or suggests fuzzy candidates via `find_script_candidates()`. Extracts `datalad run` command blocks from docstrings (handles multi-line with backslash continuation). Picks the best command for cwd by scoring path matches.
+- **extract.py** — Finds scripts in configured `script_dirs` (exact), or suggests fuzzy candidates via `find_script_candidates()`. Extracts `datalad run` command blocks from docstrings (handles multi-line with backslash continuation). Validates commands (rejects false positives like `datalad run (comment):`), auto-fixes unquoted globs and double-backslash continuations, and extracts descriptive labels preceding each command block. Scores all commands against cwd for multi-command presentation. Key types: `ExtractedCommand`, `CommandWarning`.
 - **resolve.py** — Single unified resolution algorithm:
   1. Collect candidates from `values`, `file`, and/or `scan_dirs`.
   2. If no sources configured → raw substitution (optionally prepend `prefix`).

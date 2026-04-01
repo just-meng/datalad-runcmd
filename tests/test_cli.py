@@ -143,3 +143,62 @@ def test_cli_case_insensitive_lookup_match(project: Path, capsys, monkeypatch):
     main(["process", "a", "Saline"])
     out = capsys.readouterr().out.strip()
     assert "sub-001A" in out
+
+
+# ── multi-command output ─────────────────────────────────────────────────────
+
+
+def test_cli_multi_command_shows_all(project: Path, capsys, monkeypatch):
+    """When a script has multiple commands, all are printed with headers."""
+    monkeypatch.chdir(project)
+    main(["two_blocks", "A"])
+    out = capsys.readouterr().out
+    assert "Variant A" in out
+    assert "Variant B" in out
+    # Both commands should appear in output
+    assert out.count("datalad run") == 2
+    # Best match indicator
+    assert "best match" in out
+
+
+def test_cli_multi_command_resolves_all(project: Path, capsys, monkeypatch):
+    """Placeholders are resolved in all commands, not just the best match."""
+    monkeypatch.chdir(project)
+    main(["two_blocks", "A"])
+    out = capsys.readouterr().out
+    # sub-id should be resolved in both commands
+    assert "sub-001A" in out
+    assert "{sub-id}" not in out
+
+
+# ── validation warnings in CLI ───────────────────────────────────────────────
+
+
+def test_cli_glob_warning_on_stderr(tmp_path: Path, capsys, monkeypatch):
+    """Unquoted glob patterns produce a warning on stderr."""
+    (tmp_path / "script.py").write_text('''\
+"""Script.
+
+    datalad run \\
+        -m "msg" \\
+        -i data/*.tif \\
+        "echo run"
+"""
+''')
+    monkeypatch.chdir(tmp_path)
+    main(["script"])
+    captured = capsys.readouterr()
+    assert "unquoted_glob" in captured.err or "Glob" in captured.err
+
+
+def test_cli_datalad_run_comment_rejected(tmp_path: Path, monkeypatch):
+    """A 'datalad run (comment):' line is not treated as a command."""
+    (tmp_path / "script.py").write_text('''\
+"""Docs.
+
+datalad run (manual ROI pipeline):
+"""
+''')
+    monkeypatch.chdir(tmp_path)
+    with pytest.raises(SystemExit, match="no 'datalad run' command found"):
+        main(["script"])

@@ -83,7 +83,7 @@ try:
             )
 
             try:
-                cmd = resolve_command(
+                result = resolve_command(
                     script,
                     args or [],
                     cwd=Path(ds.path),
@@ -98,13 +98,28 @@ try:
                 )
                 return
 
-            yield get_status_dict(
-                action="runcmd",
-                ds=ds,
-                status="ok",
-                message=cmd,
-                type="dataset",
-            )
+            # Emit warnings
+            for w in result.warnings:
+                logger.warning("%s", w.message)
+
+            if len(result.all_commands) > 1:
+                from datalad_runcmd.cli import _format_multi_command
+
+                yield get_status_dict(
+                    action="runcmd",
+                    ds=ds,
+                    status="ok",
+                    message=_format_multi_command(result.all_commands),
+                    type="dataset",
+                )
+            else:
+                yield get_status_dict(
+                    action="runcmd",
+                    ds=ds,
+                    status="ok",
+                    message=result.command,
+                    type="dataset",
+                )
 
 except ImportError:
     logger.debug(
