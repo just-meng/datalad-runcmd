@@ -32,7 +32,7 @@ and **replaces** all occurrences in the command template with the full IDs: `sub
 
 ## Installation
 
-As a DataLad extension (recommended), alongside other extensions:
+As a DataLad extension from GitHub:
 
 ```bash
 uv tool install datalad \
@@ -41,12 +41,31 @@ uv tool install datalad \
   --with datalad-runcmd@git+https://github.com/just-meng/datalad-runcmd.git
 ```
 
-For development:
+For local development (editable — code changes take effect immediately,
+no reinstall needed):
+
+```bash
+# Standalone CLI
+uv tool install -e /path/to/datalad-runcmd
+
+# DataLad extension (editable)
+uv tool install datalad \
+  --with-editable /path/to/datalad-runcmd \
+  --force
+```
+
+> **Note:** `--with-editable` requires a local path — it cannot be combined
+> with a git URL. Use `--with ...@git+https://...` for non-editable remote
+> installs, or clone the repo locally first.
+
+> **Note:** There is an unrelated `runcmd` package on PyPI. Always install
+> from the local path or the GitHub URL — never `uv tool install runcmd`.
+
+For running tests:
 
 ```bash
 cd datalad-runcmd
-uv venv && source .venv/bin/activate
-uv pip install -e ".[dev]"
+uv run --extra dev pytest
 ```
 
 ## Configuration
@@ -96,8 +115,9 @@ runcmd <script> [args...]
 - **No placeholders?** `runcmd prepare_metadata.py` — no extra args.
 - **Typo in script name?** Closest scripts with a `datalad run` block are
   suggested: `'proc' not found. Did you mean: process.py`
-- **Multiple `datalad run` blocks?** The one whose `-i`/`-o` paths best
-  match the current directory is selected automatically.
+- **Multiple `datalad run` blocks?** All are shown with labeled headers
+  (extracted from the text preceding each block in the docstring) and a
+  "best match" indicator based on which `-i`/`-o` paths exist in the cwd.
 - **Works from subdirectories** — config is found by walking up from cwd.
 - **No config file?** Scripts are found in cwd and placeholders are
   substituted verbatim. A warning is printed to stderr.
